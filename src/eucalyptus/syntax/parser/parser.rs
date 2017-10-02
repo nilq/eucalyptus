@@ -94,9 +94,27 @@ impl Parser {
             }
 
             TokenType::Identifier => {
-                let a = Ok(Expression::Identifier(Rc::new(self.traveler.current_content().clone())));
+                let a = Expression::Identifier(Rc::new(self.traveler.current_content().clone()));
                 self.traveler.next();
-                a
+                
+                if self.traveler.remaining() > 1 {
+                    match self.traveler.current().token_type {
+                        TokenType::IntLiteral    |
+                        TokenType::FloatLiteral  |
+                        TokenType::BoolLiteral   |
+                        TokenType::StringLiteral |
+                        TokenType::CharLiteral   |
+                        TokenType::Identifier => self.call(a),
+                        TokenType::Symbol     => match self.traveler.current_content().as_str() {
+                            "(" | "{" | "[" => self.call(a),
+                            _               => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
+                        },
+                        
+                        _ => Ok(a),
+                    }
+                } else {
+                    Ok(a)
+                }
             }
             
             TokenType::Keyword => match self.traveler.current_content().as_str() {
@@ -133,6 +151,53 @@ impl Parser {
                 Lambda {
                     params,
                     body,
+                }
+            )
+        )
+    }
+    
+    fn call(&mut self, caller: Expression) -> ParserResult<Expression> {
+        let mut args = Vec::new();
+
+        let mut acc = 0;
+
+        while self.traveler.current_content() != "\n" {
+            if self.traveler.current_content() == "," {
+                self.traveler.next();
+                
+                let expr = Rc::new(self.expression()?);
+
+                if *expr == Expression::EOF {
+                    break
+                }
+
+                args.push(expr);
+
+            } else if acc == 0 {
+                let expr = Rc::new(self.expression()?);
+                
+                if *expr == Expression::EOF {
+                    break
+                }
+
+                args.push(expr);
+
+            } else {
+                self.traveler.prev();
+                if self.traveler.current_content() != "!" || self.traveler.current_content() != "," {
+                    self.traveler.next();
+                }
+                break
+            }
+            
+            acc += 1;
+        }
+        
+        Ok(
+            Expression::Call(
+                Call {
+                    callee: Rc::new(caller),
+                    args,
                 }
             )
         )

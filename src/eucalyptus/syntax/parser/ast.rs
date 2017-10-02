@@ -9,6 +9,7 @@ pub enum Expression {
     Identifier(Rc<String>),
     Operation(Operation),
     Lambda(Lambda),
+    Call(Call),
     EOF,
 }
 
@@ -23,6 +24,12 @@ pub struct Operation {
 pub struct Lambda {
     pub params: Vec<Rc<String>>,
     pub body:   Rc<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Call {
+    pub callee: Rc<Expression>,
+    pub args:   Vec<Rc<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

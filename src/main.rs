@@ -7,7 +7,9 @@ fn main() {
 let a = 123
 let add a b = a + b
 
-let idk = fun -> a + b
+let idk = fun a b -> a + b
+
+idk 1, 2, (fun a b -> a + b)
     "#;
 
     let lexer = lexer(&mut test.chars());
