@@ -1,4 +1,4 @@
-use super::lexer::{Token, TokenType};
+use super::{Token, TokenType};
 use super::{ParserError, ParserResult};
 
 #[derive(Debug, Clone)]

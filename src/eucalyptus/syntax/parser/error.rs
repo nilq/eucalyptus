@@ -1,4 +1,4 @@
-use super::lexer::TokenPosition;
+use super::TokenPosition;
 
 use std::fmt;
 

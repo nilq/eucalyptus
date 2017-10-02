@@ -4,12 +4,16 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a b = b + 10
+'c' + 'a' + 't'
     "#;
     
     let lexer = lexer(&mut test.chars());
 
-    for token in lexer {
-        println!("{:#?}", token)
+    let traveler   = Traveler::new(lexer.collect());
+    let mut parser = Parser::new(traveler);
+    
+    match parser.parse() {
+        Err(why)  => println!("error: {}", why),
+        Ok(stuff) => println!("{:#?}", stuff),
     }
 }
