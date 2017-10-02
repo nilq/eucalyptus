@@ -7,10 +7,12 @@ pub enum Expression {
     Bool(bool),
     Str(Rc<String>),
     Char(char),
+    Array(Vec<Rc<Expression>>),
     Identifier(Rc<String>),
     Operation(Operation),
     Lambda(Lambda),
     Call(Call),
+    Index(Index),
     EOF,
 }
 
@@ -31,6 +33,12 @@ pub struct Lambda {
 pub struct Call {
     pub callee: Rc<Expression>,
     pub args:   Vec<Rc<Expression>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Index {
+    pub id:    Rc<Expression>,
+    pub index: Rc<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

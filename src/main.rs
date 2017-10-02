@@ -4,11 +4,14 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = 123
+let a = [1, 2, 3]
+
+print a[0 + 1]
 
 let add a b =
   let b   = a + b
   let idk = fun a b -> a + b
+  b
 
 idk 1, 2, (fun a b -> a + b)
     "#;

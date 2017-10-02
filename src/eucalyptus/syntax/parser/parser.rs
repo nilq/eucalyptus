@@ -100,6 +100,7 @@ impl Parser {
                 if self.traveler.remaining() > 1 {
                     match self.traveler.current_content().as_str() {
                         "}" | "]" | "," | ")" => Ok(a),
+                        "["                   => self.index(Rc::new(a)),
                         _                     => self.try_call(a),
                     }
                 } else {
@@ -126,6 +127,7 @@ impl Parser {
                         Ok(a)
                     }
                 }
+                "[" => self.array(),
                 _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
             },
 
@@ -136,6 +138,24 @@ impl Parser {
 
             _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected: {}", self.traveler.current_content()))),
         }
+    }
+
+    fn index(&mut self, id: Rc<Expression>) -> ParserResult<Expression> {
+        self.traveler.next();
+
+        let index = Rc::new(self.expression()?);
+
+        self.traveler.expect_content("]")?;
+        self.traveler.next();
+        
+        Ok(
+            Expression::Index(
+                Index {
+                    id,
+                    index,
+                }
+            )
+        )
     }
     
     fn try_call(&mut self, callee: Expression) -> ParserResult<Expression> {
@@ -153,6 +173,37 @@ impl Parser {
             
             _ => Ok(callee),
         }
+    }
+
+    fn array(&mut self) -> ParserResult<Expression> {
+        self.traveler.next();
+        
+        let mut content = Vec::new();
+        
+        let mut acc = 0;
+
+        while self.traveler.current_content() != "]" {
+            if self.traveler.current_content() == "," {
+                self.traveler.next();
+                content.push(Rc::new(self.expression()?));
+
+            } else if acc == 0 {
+                content.push(Rc::new(self.expression()?));
+
+            } else {
+                self.traveler.prev();
+                if self.traveler.current_content() != "," {
+                    self.traveler.next();
+                }
+                break
+            }
+
+            acc += 1
+        }
+
+        self.traveler.next();
+
+        Ok(Expression::Array(content))
     }
     
     fn lambda(&mut self) -> ParserResult<Expression> {
@@ -219,7 +270,7 @@ impl Parser {
                 break
             }
             
-            acc += 1;
+            acc += 1
         }
         
         Ok(
@@ -377,13 +428,6 @@ impl Parser {
         }
         
         let term = self.term()?;
-        
-        match term {
-            Expression::Number(_) |
-            Expression::Str(_)    |
-            Expression::Bool(_) => {self.traveler.next();},
-            _ => (),
-        }
 
         ex_stack.push(term);
         
@@ -392,13 +436,6 @@ impl Parser {
         while ex_stack.len() > 1 {
             if !done {
                 if self.traveler.current().token_type != TokenType::Operator {
-                    match self.traveler.current().token_type {
-                        TokenType::IntLiteral |
-                        TokenType::FloatLiteral |
-                        TokenType::StringLiteral    |
-                        TokenType::BoolLiteral => {self.traveler.next();},
-                        _ => (),
-                    }
                     done = true;
                     continue
                 }
@@ -421,12 +458,7 @@ impl Parser {
                     );
 
                     let term = self.term()?;
-                    match term {
-                        Expression::Number(_) |
-                        Expression::Str(_)    |
-                        Expression::Bool(_) => {self.traveler.next();},
-                        _ => (),
-                    }
+
                     ex_stack.push(term);
                     op_stack.push((op, precedence));
 
@@ -434,12 +466,7 @@ impl Parser {
                 }
 
                 let term = self.term()?;
-                match term {
-                    Expression::Number(_) |
-                    Expression::Str(_)    |
-                    Expression::Bool(_) => {self.traveler.next();},
-                    _ => (),
-                }
+
                 ex_stack.push(term);
                 op_stack.push((op, precedence));
             }
