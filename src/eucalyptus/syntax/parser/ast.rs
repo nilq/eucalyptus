@@ -6,6 +6,10 @@ pub trait Visitor {
     fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()>;
 }
 
+pub trait Evaluator {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Block(Vec<Statement>),
@@ -50,6 +54,34 @@ impl Visitor for Expression {
             Expression::Index(ref index)         => index.visit(sym, env),
 
             _ => Ok(()),
+        }
+    }
+}
+
+impl Evaluator for Expression {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match *self {
+            Expression::Number(n)  => Ok(Value::Number(n)),
+            Expression::Bool(n)    => Ok(Value::Bool(n)),
+            Expression::Str(ref n) => Ok(Value::Str(n.clone())),
+            Expression::Char(n)    => Ok(Value::Char(n)),
+
+            Expression::Array(ref content) => {
+                let mut stack = Vec::new();
+
+                for c in content {
+                    stack.push(Rc::new(c.eval(sym, env)?))
+                }
+
+                Ok(Value::Array(stack))
+            },
+
+            Expression::Identifier(ref id) => match sym.get_name(&*id) {
+                Some((a, b)) => Ok(env.get_value(a, b)?),
+                None         => Ok(Value::Nil),
+            },
+
+            _ => Ok(Value::Nil),
         }
     }
 }

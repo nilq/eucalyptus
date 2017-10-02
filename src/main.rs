@@ -6,8 +6,7 @@ use eucalyptus::*;
 fn main() {
     let test = r#"
 let a = {1, 2, 3}
-
-let add 1 b = a + b
+a
     "#;
 
     let lexer = lexer(&mut test.chars());
@@ -20,6 +19,7 @@ let add 1 b = a + b
         Ok(stuff) => {
             let symtab  = Rc::new(SymTab::new_global());
             let typetab = Rc::new(TypeTab::new_global());
+            let valtab  = Rc::new(ValTab::new_global());
             
             for s in stuff.iter() {
                 match s.visit(&symtab, &typetab) {

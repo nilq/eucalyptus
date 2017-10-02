@@ -282,7 +282,7 @@ impl Parser {
             )
         )
     }
-    
+
     fn block(&mut self) -> ParserResult<Expression> {
         let mut stack = Vec::new();
         loop {
