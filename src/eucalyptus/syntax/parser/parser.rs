@@ -12,7 +12,7 @@ impl Parser {
             traveler,
         }
     }
-    
+
     pub fn parse(&mut self) -> ParserResult<Vec<Statement>> {
         let mut stack = Vec::new();
 
@@ -25,7 +25,7 @@ impl Parser {
     }
     
     pub fn skip_whitespace(&mut self) -> ParserResult<()> {
-        while self.traveler.current_content() == "\n" || self.traveler.current().token_type == TokenType::EOL {
+        while self.traveler.current_content() == "\n" || self.traveler.current().token_type == TokenType::EOL || self.traveler.current().token_type == TokenType::Indent {
             self.traveler.next();
             
             if self.traveler.remaining() < 2 {
@@ -96,7 +96,7 @@ impl Parser {
             TokenType::Identifier => {
                 let a = Expression::Identifier(Rc::new(self.traveler.current_content().clone()));
                 self.traveler.next();
-                
+
                 if self.traveler.remaining() > 1 {
                     match self.traveler.current_content().as_str() {
                         "}" | "]" | "," | ")" => Ok(a),
@@ -231,6 +231,32 @@ impl Parser {
             )
         )
     }
+    
+    fn block(&mut self) -> ParserResult<Expression> {
+        let mut stack = Vec::new();
+        loop {
+            if self.traveler.current_content() == "\n" {
+                stack.push(self.traveler.current().clone());
+                self.traveler.next();
+
+                if self.traveler.current().token_type == TokenType::Indent {
+                    self.traveler.next();
+                } else {
+                    break
+                }
+            }
+            
+            stack.push(self.traveler.current().clone());
+            self.traveler.next();
+        }
+        
+        let mut parser = Parser::new(Traveler::new(stack));
+
+        match parser.parse() {
+            Ok(s)    => Ok(Expression::Block(s)),
+            Err(why) => Err(ParserError::new(&format!("{}", why))),
+        }
+    }
 
     fn binding(&mut self) -> ParserResult<Statement> {
         self.traveler.next();
@@ -253,7 +279,16 @@ impl Parser {
 
             self.traveler.next();
             
-            let body = Rc::new(self.expression()?);
+            let body;
+
+            match self.traveler.current().token_type {
+                TokenType::EOL => {
+                    self.traveler.next();
+
+                    body = Rc::new(self.block()?)
+                },
+                _ => body = Rc::new(self.expression()?)
+            }
             
             Ok(
                 Statement::Function(
@@ -265,6 +300,7 @@ impl Parser {
                 )
             )
         } else {
+            self.skip_whitespace()?;
             self.traveler.expect_content("=")?;
             self.traveler.next();
 
@@ -282,6 +318,21 @@ impl Parser {
         }
     }
 
+    fn assignment(&mut self, left: Rc<Expression>) -> ParserResult<Statement> {
+        self.traveler.next();
+
+        let right = Rc::new(self.expression()?);
+
+        Ok(
+            Statement::Assignment(
+                Assignment {
+                    left,
+                    right,
+                }
+            )
+        )
+    }
+
     fn statement(&mut self) -> ParserResult<Statement> {
         self.skip_whitespace()?;
         match self.traveler.current().token_type {
@@ -291,6 +342,18 @@ impl Parser {
                     self.statement()
                 },
                 _ => Ok(Statement::Expression(Rc::new(self.expression()?))),
+            },
+            
+            TokenType::Identifier => {
+                let a = Expression::Identifier(Rc::new(self.traveler.current_content().clone()));
+                self.traveler.next();
+                
+                if self.traveler.current_content() == "=" {
+                    self.assignment(Rc::new(a))
+                } else {
+                    self.traveler.prev();
+                    Ok(Statement::Expression(Rc::new(self.expression()?)))
+                }
             },
             
             TokenType::Keyword => match self.traveler.current_content().as_str() {

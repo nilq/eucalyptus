@@ -5,9 +5,10 @@ use eucalyptus::*;
 fn main() {
     let test = r#"
 let a = 123
-let add a b = a + b
 
-let idk = fun a b -> a + b
+let add a b =
+  let b   = a + b
+  let idk = fun a b -> a + b
 
 idk 1, 2, (fun a b -> a + b)
     "#;

@@ -42,6 +42,10 @@ pub fn lexer(data: &mut Chars) -> Lexer {
         "==",
         "!=",
     ].iter().map(|&x| x.to_string()).collect();
+    
+    let indent = vec![
+        "  ", "\t",
+    ].iter().map(|&x| x.to_string()).collect();
 
     let types = vec![
         "i32", "i64", "f32", "f64", "char", "string", "bool",
@@ -57,6 +61,7 @@ pub fn lexer(data: &mut Chars) -> Lexer {
     ].iter().map(|&x| x.to_string()).collect();
 
     let matcher_eol            = ConstantMatcher::new(TokenType::EOL, eol);
+    let matcher_indent         = ConstantMatcher::new(TokenType::Indent, indent);
     let matcher_symbol         = ConstantMatcher::new(TokenType::Symbol, symbols);
     let matcher_operator       = ConstantMatcher::new(TokenType::Operator, operators);
     let matcher_boolean        = KeyMatcher::new(TokenType::BoolLiteral, boolean);
@@ -69,6 +74,7 @@ pub fn lexer(data: &mut Chars) -> Lexer {
     let matcher_string_literal = StringLiteralMatcher {};
 
     lexer.matchers_mut().push(Rc::new(matcher_eol));
+    lexer.matchers_mut().push(Rc::new(matcher_indent));
     lexer.matchers_mut().push(Rc::new(matcher_whitespace));
     lexer.matchers_mut().push(Rc::new(matcher_symbol));
     lexer.matchers_mut().push(Rc::new(matcher_operator));

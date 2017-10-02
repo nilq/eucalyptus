@@ -13,6 +13,7 @@ pub enum TokenType {
     Type,
     Keyword,
     Whitespace,
+    Indent,
     EOL,
     EOF,
 }

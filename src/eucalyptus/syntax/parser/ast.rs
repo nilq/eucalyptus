@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    Block(Vec<Statement>),
     Number(f64),
     Bool(bool),
     Str(Rc<String>),
@@ -37,6 +38,7 @@ pub enum Statement {
     Expression(Rc<Expression>),
     Binding(Binding),
     Function(Function),
+    Assignment(Assignment),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +52,12 @@ pub struct Function {
     pub name:   Rc<String>,
     pub params: Vec<Rc<String>>,
     pub body:   Rc<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assignment {
+    pub left:  Rc<Expression>,
+    pub right: Rc<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
