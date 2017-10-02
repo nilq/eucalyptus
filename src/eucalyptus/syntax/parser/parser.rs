@@ -98,31 +98,60 @@ impl Parser {
                 self.traveler.next();
                 
                 if self.traveler.remaining() > 1 {
-                    match self.traveler.current().token_type {
-                        TokenType::IntLiteral    |
-                        TokenType::FloatLiteral  |
-                        TokenType::BoolLiteral   |
-                        TokenType::StringLiteral |
-                        TokenType::CharLiteral   |
-                        TokenType::Identifier => self.call(a),
-                        TokenType::Symbol     => match self.traveler.current_content().as_str() {
-                            "(" | "{" | "[" => self.call(a),
-                            _               => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
-                        },
-                        
-                        _ => Ok(a),
+                    match self.traveler.current_content().as_str() {
+                        "}" | "]" | "," | ")" => Ok(a),
+                        _                     => self.try_call(a),
                     }
                 } else {
                     Ok(a)
                 }
             }
-            
+
+            TokenType::Symbol => match self.traveler.current_content().as_str() {
+                "(" => {
+                    self.traveler.next();
+                    if self.traveler.current_content() == ")" {
+                        return Err(ParserError::new_pos(self.traveler.current().position, &format!("illegal empty clause '()'")))
+                    }
+                    
+                    let a = self.expression()?;
+
+                    self.skip_whitespace()?;
+                    self.traveler.expect_content(")")?;
+                    self.traveler.next();
+                    
+                    if self.traveler.remaining() > 1 {
+                        self.try_call(a)
+                    } else {
+                        Ok(a)
+                    }
+                }
+                _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
+            },
+
             TokenType::Keyword => match self.traveler.current_content().as_str() {
                 "fun" => self.lambda(),
                 _     => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected keyword: {}", self.traveler.current_content()))),
             },
 
             _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected: {}", self.traveler.current_content()))),
+        }
+    }
+    
+    fn try_call(&mut self, callee: Expression) -> ParserResult<Expression> {
+        match self.traveler.current().token_type {
+            TokenType::IntLiteral    |
+            TokenType::FloatLiteral  |
+            TokenType::BoolLiteral   |
+            TokenType::StringLiteral |
+            TokenType::CharLiteral   |
+            TokenType::Identifier => self.call(callee),
+            TokenType::Symbol     => match self.traveler.current_content().as_str() {
+                "(" | "{" | "[" => self.call(callee),
+                _               => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
+            },
+            
+            _ => Ok(callee),
         }
     }
     
