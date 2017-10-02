@@ -4,9 +4,9 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = [1, 2, 3]
+let a = {1, 2, 3}
 
-print a[0 + 1]
+print a[1]
 
 let add a b =
   let b   = a + b

@@ -127,7 +127,7 @@ impl Parser {
                         Ok(a)
                     }
                 }
-                "[" => self.array(),
+                "{" => self.array(),
                 _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
             },
 
@@ -167,8 +167,8 @@ impl Parser {
             TokenType::CharLiteral   |
             TokenType::Identifier => self.call(callee),
             TokenType::Symbol     => match self.traveler.current_content().as_str() {
-                "(" | "{" | "[" => self.call(callee),
-                _               => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
+                "(" | "{"         => self.call(callee),
+                _                 => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected symbol: {}", self.traveler.current_content()))),
             },
             
             _ => Ok(callee),
@@ -182,7 +182,7 @@ impl Parser {
         
         let mut acc = 0;
 
-        while self.traveler.current_content() != "]" {
+        while self.traveler.current_content() != "}" {
             if self.traveler.current_content() == "," {
                 self.traveler.next();
                 content.push(Rc::new(self.expression()?));
@@ -235,7 +235,7 @@ impl Parser {
             )
         )
     }
-    
+
     fn call(&mut self, caller: Expression) -> ParserResult<Expression> {
         let mut args = Vec::new();
 
