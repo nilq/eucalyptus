@@ -4,7 +4,8 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-'c' + 'a' + 't'
+let a = 123
+let add a b = a + b
     "#;
     
     let lexer = lexer(&mut test.chars());

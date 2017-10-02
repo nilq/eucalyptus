@@ -1,7 +1,4 @@
-use super::{ParserResult, ParserError};
-
 use std::rc::Rc;
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
@@ -24,6 +21,21 @@ pub struct Operation {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Expression(Rc<Expression>),
+    Binding(Binding),
+    Function(Function),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Binding {
+    pub left:  Rc<Expression>,
+    pub right: Rc<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Function {
+    pub name:   Rc<String>,
+    pub params: Vec<Rc<String>>,
+    pub body:   Rc<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -103,6 +103,56 @@ impl Parser {
         }
     }
 
+    fn binding(&mut self) -> ParserResult<Statement> {
+        self.traveler.next();
+        
+        let left = Rc::new(self.traveler.expect(TokenType::Identifier)?);
+        self.traveler.next();
+        
+        if self.traveler.current().token_type == TokenType::Identifier {
+            let mut params = Vec::new();
+            while self.traveler.current_content() != "=" {
+                let param = Rc::new(self.traveler.expect(TokenType::Identifier)?);
+                self.traveler.next();
+                
+                params.push(param);
+                
+                if self.traveler.current().token_type == TokenType::EOL || self.traveler.current().token_type == TokenType::EOF {
+                    return Err(ParserError::new_pos(self.traveler.current().position, "expected '=' found eol/eof"))
+                }
+            }
+
+            self.traveler.next();
+            
+            let body = Rc::new(self.expression()?);
+            
+            Ok(
+                Statement::Function(
+                    Function {
+                        name: left,
+                        params,
+                        body,
+                    }
+                )
+            )
+        } else {
+            self.traveler.expect_content("=")?;
+            self.traveler.next();
+
+            let right = Rc::new(self.expression()?);
+            let left  = Rc::new(Expression::Identifier(left));
+            
+            Ok(
+                Statement::Binding(
+                    Binding {
+                        left,
+                        right,
+                    }
+                )
+            )
+        }
+    }
+
     fn statement(&mut self) -> ParserResult<Statement> {
         self.skip_whitespace()?;
         match self.traveler.current().token_type {
@@ -113,6 +163,12 @@ impl Parser {
                 },
                 _ => Ok(Statement::Expression(Rc::new(self.expression()?))),
             },
+            
+            TokenType::Keyword => match self.traveler.current_content().as_str() {
+                "let" => Ok(self.binding()?),
+                _     => Ok(Statement::Expression(Rc::new(self.expression()?))),
+            },
+            
             _ => Ok(Statement::Expression(Rc::new(self.expression()?))),
         }
     }
