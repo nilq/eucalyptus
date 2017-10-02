@@ -98,9 +98,44 @@ impl Parser {
                 self.traveler.next();
                 a
             }
+            
+            TokenType::Keyword => match self.traveler.current_content().as_str() {
+                "fun" => self.lambda(),
+                _     => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected keyword: {}", self.traveler.current_content()))),
+            },
 
             _ => Err(ParserError::new_pos(self.traveler.current().position, &format!("unexpected: {}", self.traveler.current_content()))),
         }
+    }
+    
+    fn lambda(&mut self) -> ParserResult<Expression> {
+        self.traveler.next();
+
+        let mut params = Vec::new();
+
+        while self.traveler.current_content() != "->" {
+            let param = Rc::new(self.traveler.expect(TokenType::Identifier)?);
+            self.traveler.next();
+            
+            params.push(param);
+            
+            if self.traveler.current().token_type == TokenType::EOL || self.traveler.current().token_type == TokenType::EOF {
+                return Err(ParserError::new_pos(self.traveler.current().position, "expected '=' found eol/eof"))
+            }
+        }
+        
+        self.traveler.next();
+
+        let body = Rc::new(self.expression()?);
+
+        Ok(
+            Expression::Lambda(
+                Lambda {
+                    params,
+                    body,
+                }
+            )
+        )
     }
 
     fn binding(&mut self) -> ParserResult<Statement> {
