@@ -57,7 +57,7 @@ impl Parser {
     
     pub fn term(&mut self) -> ParserResult<Expression> {
         self.skip_whitespace()?;
-        
+
         if self.traveler.remaining() < 2 {
             return Ok(Expression::EOF)
         }
@@ -211,7 +211,7 @@ impl Parser {
 
         let mut params = Vec::new();
 
-        while self.traveler.current_content() != "->" {
+        while self.traveler.current_content() != "->" {         
             let param = Rc::new(self.traveler.expect(TokenType::Identifier)?);
             self.traveler.next();
             
@@ -286,7 +286,14 @@ impl Parser {
     fn block(&mut self) -> ParserResult<Expression> {
         let mut stack = Vec::new();
         loop {
-            if self.traveler.current_content() == "\n" {
+            if self.traveler.current().token_type == TokenType::Indent {
+                self.traveler.prev();
+                
+                if self.traveler.current_content() == "\n" {
+                    self.traveler.next();
+                    break
+                }
+            } else if self.traveler.current_content() == "\n" {
                 stack.push(self.traveler.current().clone());
                 self.traveler.next();
 

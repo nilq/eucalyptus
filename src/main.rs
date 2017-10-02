@@ -1,19 +1,13 @@
-mod eucalyptus;
+use std::rc::Rc;
 
+mod eucalyptus;
 use eucalyptus::*;
 
 fn main() {
     let test = r#"
 let a = {1, 2, 3}
 
-print a[1]
-
-let add a b =
-  let b   = a + b
-  let idk = fun a b -> a + b
-  b
-
-idk 1, 2, (fun a b -> a + b)
+let add 1 b = a + b
     "#;
 
     let lexer = lexer(&mut test.chars());
@@ -23,6 +17,19 @@ idk 1, 2, (fun a b -> a + b)
 
     match parser.parse() {
         Err(why)  => println!("error: {}", why),
-        Ok(stuff) => println!("{:#?}", stuff),
+        Ok(stuff) => {
+            let symtab  = Rc::new(SymTab::new_global());
+            let typetab = Rc::new(TypeTab::new_global());
+            
+            for s in stuff.iter() {
+                match s.visit(&symtab, &typetab) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        println!("{}", e);
+                        break
+                    },
+                }
+            }
+        },
     }
 }

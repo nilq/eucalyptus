@@ -3,7 +3,7 @@ pub mod traveler;
 pub mod ast;
 pub mod parser;
 
-pub use super::lexer::*;
+pub use super::*;
 
 pub use self::error::*;
 pub use self::traveler::*;
