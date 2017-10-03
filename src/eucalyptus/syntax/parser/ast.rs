@@ -81,6 +81,8 @@ impl Evaluator for Expression {
                 None         => Ok(Value::Nil),
             },
 
+            Expression::Operation(ref operation) => operation.eval(sym, env),
+
             _ => Ok(Value::Nil),
         }
     }
@@ -97,6 +99,86 @@ impl Visitor for Operation {
     fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
         self.left.visit(sym, env)?;
         self.right.visit(sym, env)
+    }
+}
+
+impl Evaluator for Operation {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match self.op {
+            Operand::Pow => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a.powf(b))),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Mul => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b)),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Div => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a / b)),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Mod => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a % b)),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Add => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
+                (Value::Array(a), b)                 => {
+                    let mut c = a.clone();
+                    c.push(Rc::new(b));
+                    Ok(Value::Array(c))
+                },
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Sub => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b)),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Equal => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (a, b) => Ok(Value::Bool(a == b)),
+            },
+            
+            Operand::NEqual => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (a, b) => Ok(Value::Bool(a != b)),
+            },
+            
+            Operand::Lt => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a < b)),
+                (Value::Str(a), Value::Str(b))       => Ok(Value::Bool(a < b)),
+                (Value::Char(a), Value::Char(b))     => Ok(Value::Bool(a < b)),
+                (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() < b.len())),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::Gt => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a > b)),
+                (Value::Str(a), Value::Str(b))       => Ok(Value::Bool(a > b)),
+                (Value::Char(a), Value::Char(b))     => Ok(Value::Bool(a > b)),
+                (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() > b.len())),
+                _ => Ok(Value::Nil),
+            },
+            
+            Operand::LtEqual => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a <= b)),
+                (Value::Str(a), Value::Str(b))       => Ok(Value::Bool(a <= b)),
+                (Value::Char(a), Value::Char(b))     => Ok(Value::Bool(a <= b)),
+                (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() <= b.len())),
+                _ => Ok(Value::Nil),
+            },
+
+            Operand::GtEqual => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a >= b)),
+                (Value::Str(a), Value::Str(b))       => Ok(Value::Bool(a >= b)),
+                (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() >= b.len())),
+                _ => Ok(Value::Nil),
+            },
+        }
     }
 }
 
@@ -164,6 +246,16 @@ impl Visitor for Statement {
     }
 }
 
+impl Evaluator for Statement {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match *self {
+            Statement::Expression(ref e)    => e.eval(sym, env),
+            Statement::Binding(ref binding) => binding.eval(sym, env),
+            _ => Ok(Value::Nil),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Binding {
     pub left:  Rc<Expression>,
@@ -191,6 +283,27 @@ impl Visitor for Binding {
     }
 }
 
+impl Evaluator for Binding {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match *self.left {
+            Expression::Identifier(ref name) => {
+                let index = sym.add_name(name);
+                if index >= env.size() {
+                    env.grow();
+                }
+
+                if let Err(e) = env.set_value(index, 0, self.right.eval(sym, env)?) {
+                    Err(RunError::new(&format!("{}: error setting value", e)))
+                } else {
+                    Ok(Value::Nil)
+                }
+            }
+            
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name:   Rc<String>,
@@ -204,6 +317,27 @@ pub struct Assignment {
     pub right: Rc<Expression>,
 }
 
+impl Evaluator for Assignment {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match *self.left {
+            Expression::Identifier(ref name) => {
+                let (a, b) = match sym.get_name(name) {
+                    Some((a, b)) => (a, b),
+                    None         => return Err(RunError::new(&format!("{}: undeclared variable", name))),
+                };
+
+                if let Err(e) = env.set_value(a, b, self.right.eval(sym, env)?) {
+                    Err(RunError::new(&format!("{}: error setting value", e)))
+                } else {
+                    Ok(Value::Nil)
+                }
+            }
+            
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
     Pow,
@@ -211,7 +345,6 @@ pub enum Operand {
     Add, Sub,
     Equal, NEqual,
     Lt, Gt, LtEqual, GtEqual,
-    Not,
 }
 
 impl Operand {
@@ -229,7 +362,6 @@ impl Operand {
             ">"   => Some((Operand::Gt, 4)),
             "<="  => Some((Operand::LtEqual, 4)),
             ">="  => Some((Operand::GtEqual, 4)),
-            "!"   => Some((Operand::Not, 4)),
             _     => None,
         }
     }

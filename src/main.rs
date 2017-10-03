@@ -5,7 +5,7 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = {1, 2, 3}
+let a = {1, 2, 3} - 1
 a
     "#;
 
@@ -19,11 +19,20 @@ a
         Ok(stuff) => {
             let symtab  = Rc::new(SymTab::new_global());
             let typetab = Rc::new(TypeTab::new_global());
-            let valtab  = Rc::new(ValTab::new_global());
+
+            let mut valtab = Rc::new(ValTab::new_global());
             
             for s in stuff.iter() {
                 match s.visit(&symtab, &typetab) {
                     Ok(()) => (),
+                    Err(e) => {
+                        println!("{}", e);
+                        break
+                    },
+                }
+                
+                match s.eval(&symtab, &mut valtab) {
+                    Ok(v) => println!("{:#?}", v),
                     Err(e) => {
                         println!("{}", e);
                         break

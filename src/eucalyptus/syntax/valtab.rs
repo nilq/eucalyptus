@@ -54,12 +54,12 @@ impl ValTab {
                     *v = t;
                     Ok(())
                 },
-                None => Err(RunError::new(&format!("can't set type of invalid type index: {}", index))),
+                None => Err(RunError::new(&format!("can't set value of invalid value index: {}", index))),
             }
         } else {
             match self.parent {
                 Some(ref p) => p.set_value(index, env_index - 1, t),
-                None => Err(RunError::new(&format!("can't set type with invalid env index: {}", env_index))),
+                None => Err(RunError::new(&format!("can't set value with invalid env index: {}", env_index))),
             }
         }
     }
@@ -68,12 +68,12 @@ impl ValTab {
         if env_index == 0 {
             match self.types.borrow().get(index) {
                 Some(v) => Ok(v.clone()),
-                None    => Err(RunError::new(&format!("can't get type of invalid type index: {}", index))),
+                None    => Err(RunError::new(&format!("can't get value of invalid value index: {}", index))),
             }
         } else {
             match self.parent {
                 Some(ref p) => p.get_value(index, env_index - 1),
-                None => Err(RunError::new(&format!("can't get type with invalid env index: {}", index))),
+                None => Err(RunError::new(&format!("can't get value with invalid value index: {}", index))),
             }
         }
     }
