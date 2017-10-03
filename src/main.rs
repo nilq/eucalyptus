@@ -5,7 +5,7 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = 1 * 1
+{1, 2, "hey"}[0]
     "#;
 
     let lexer = lexer(&mut test.chars());
@@ -19,19 +19,27 @@ let a = 1 * 1
             let symtab  = Rc::new(SymTab::new_global());
             let typetab = Rc::new(TypeTab::new_global());
 
-            let mut valtab = Rc::new(ValTab::new_global());
+            let valtab = Rc::new(ValTab::new_global());
             
             for s in stuff.iter() {
-                match s.visit(&symtab, &typetab) {
+                match s.visit(&symtab, &typetab, &valtab) {
                     Ok(()) => (),
                     Err(e) => {
                         println!("{}", e);
                         break
                     },
                 }
+
+                match s.get_type(&symtab, &typetab, &valtab) {
+                    Ok(v) => println!("type: {:#?}", v),
+                    Err(e) => {
+                        println!("{}", e);
+                        break
+                    },
+                }
                 
-                match s.eval(&symtab, &mut valtab) {
-                    Ok(v) => println!("{:#?}", v),
+                match s.eval(&symtab, &valtab) {
+                    Ok(v) => println!("value: {:#?}", v),
                     Err(e) => {
                         println!("{}", e);
                         break

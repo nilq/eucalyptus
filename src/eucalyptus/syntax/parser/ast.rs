@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::*;
 
 pub trait Visitor {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()>;
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()>;
 }
 
 pub trait Evaluator {
@@ -11,7 +11,7 @@ pub trait Evaluator {
 }
 
 pub trait Typer {
-    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type>;
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<Type>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,18 +31,18 @@ pub enum Expression {
 }
 
 impl Visitor for Expression {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         match *self {
             Expression::Block(ref statements) => {
                 for s in statements {
-                    s.visit(&sym, &env)?
+                    s.visit(sym, env, val)?
                 }
                 Ok(())
             },
 
             Expression::Array(ref body) => {
                 for v in body {
-                    v.visit(sym, env)?
+                    v.visit(sym, env, val)?
                 }
                 Ok(())
             }
@@ -52,10 +52,10 @@ impl Visitor for Expression {
                 None    => Err(RunError::new(&format!("{}: undeclared use", id))),
             },
 
-            Expression::Operation(ref operation) => operation.visit(sym, env),
-            Expression::Lambda(ref lambda)       => lambda.visit(sym, env),
-            Expression::Call(ref call)           => call.visit(sym, env),
-            Expression::Index(ref index)         => index.visit(sym, env),
+            Expression::Operation(ref operation) => operation.visit(sym, env, val),
+            Expression::Lambda(ref lambda)       => lambda.visit(sym, env, val),
+            Expression::Call(ref call)           => call.visit(sym, env, val),
+            Expression::Index(ref index)         => index.visit(sym, env, val),
 
             _ => Ok(()),
         }
@@ -79,6 +79,8 @@ impl Evaluator for Expression {
 
                 Ok(Value::Array(stack))
             },
+            
+            Expression::Index(ref index) => index.eval(sym, env),
 
             Expression::Identifier(ref id) => match sym.get_name(&*id) {
                 Some((a, b)) => Ok(env.get_value(a, b)?),
@@ -93,19 +95,28 @@ impl Evaluator for Expression {
 }
 
 impl Typer for Expression {
-    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type> {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<Type> {
         match *self {
-            Expression::Number(_)         => Ok(Type::Number),
-            Expression::Str(_)            => Ok(Type::Str),
-            Expression::Char(_)           => Ok(Type::Char),
-            Expression::Bool(_)           => Ok(Type::Bool),
+            Expression::Number(_)          => Ok(Type::Number),
+            Expression::Str(_)             => Ok(Type::Str),
+            Expression::Char(_)            => Ok(Type::Char),
+            Expression::Bool(_)            => Ok(Type::Bool),
+            Expression::Array(ref content) => {
+                let mut types = Vec::new();
+
+                for c in content {
+                    types.push(Rc::new(c.get_type(sym, env, val)?))
+                }
+
+                Ok(Type::Array(types))
+            }
             Expression::Identifier(ref n) => match sym.get_name(&*n) {
                 Some((i, env_index)) => {
                     Ok(env.get_type(i, env_index).unwrap())
                 },
                 None => Err(RunError::new(&format!("unexpected use of: {}", n))),
             },
-            Expression::Operation(ref operation) => operation.get_type(sym, env),
+            Expression::Operation(ref operation) => operation.get_type(sym, env, val),
             _ => Ok(Type::Undefined),
         }
     }
@@ -119,9 +130,9 @@ pub struct Operation {
 }
 
 impl Visitor for Operation {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
-        self.left.visit(sym, env)?;
-        self.right.visit(sym, env)
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
+        self.left.visit(sym, env, val)?;
+        self.right.visit(sym, env, val)
     }
 }
 
@@ -132,12 +143,12 @@ impl Evaluator for Operation {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a.powf(b))),
                 _ => Ok(Value::Nil),
             },
-            
+
             Operand::Mul => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b)),
                 _ => Ok(Value::Nil),
             },
-            
+
             Operand::Div => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a / b)),
                 _ => Ok(Value::Nil),
@@ -206,72 +217,72 @@ impl Evaluator for Operation {
 }
 
 impl Typer for Operation {
-    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type> {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<Type> {
         match self.op {
-            Operand::Pow => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Pow => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}^{:?}): failed to operate", a, b)))
             },
             
-            Operand::Mul => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Mul => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}*{:?}): failed to operate", a, b)))
             },
             
-            Operand::Div => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Div => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}/{:?}): failed to operate", a, b)))
             },
             
-            Operand::Mod => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Mod => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}%{:?}): failed to operate", a, b)))
             },
             
-            Operand::Add => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Add => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}+{:?}): failed to operate", a, b)))
             },
             
-            Operand::Sub => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Sub => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}-{:?}): failed to operate", a, b)))
             },
             
-            Operand::Lt => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Lt => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
                 (a, b) => Err(RunError::new(&format!("({:?}<{:?}): failed to compare", a, b)))
             },
             
-            Operand::Gt => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::Gt => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
                 (a, b) => Err(RunError::new(&format!("({:?}>{:?}): failed to compare", a, b)))
             },
             
-            Operand::LtEqual => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::LtEqual => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
                 (a, b) => Err(RunError::new(&format!("({:?}<={:?}): failed to compare", a, b)))
             },
 
-            Operand::GtEqual => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+            Operand::GtEqual => match (self.left.get_type(sym, env, val)?, self.right.get_type(sym, env, val)?) {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
@@ -290,11 +301,12 @@ pub struct Lambda {
 }
 
 impl Visitor for Lambda {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         let local_sym = Rc::new(SymTab::new(sym.clone(), &self.params));
         let local_env = Rc::new(TypeTab::new(env.clone(), &self.params.iter().map(|_| Type::Any).collect()));
+        let local_val = Rc::new(ValTab::new(val.clone(), &self.params.iter().map(|_| Value::Nil).collect())); // hmmm
 
-        self.body.visit(&local_sym, &local_env)
+        self.body.visit(&local_sym, &local_env, &local_val)
     }
 }
 
@@ -305,11 +317,11 @@ pub struct Call {
 }
 
 impl Visitor for Call {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
-        self.callee.visit(sym, env)?;
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
+        self.callee.visit(sym, env, val)?;
 
         for arg in self.args.iter() {
-            arg.visit(sym, env)?
+            arg.visit(sym, env, val)?
         }
         
         Ok(())
@@ -323,9 +335,34 @@ pub struct Index {
 }
 
 impl Visitor for Index {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
-        self.id.visit(sym, env)?;
-        self.index.visit(sym, env)
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
+        self.id.visit(sym, env, val)?;
+        self.index.visit(sym, env, val)
+    }
+}
+
+impl Evaluator for Index {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match self.id.eval(sym, env)? {
+            Value::Array(content) => match self.index.eval(sym, env)? {
+                Value::Number(n) => Ok((&*content.clone().remove(n as usize).clone()).clone()),
+                c => Err(RunError::new(&format!("{:?}: invalid index", c))),
+            },
+            _ => Ok(Value::Nil)
+        }
+    }
+}
+
+impl Typer for Index {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<Type> {
+        match self.id.get_type(sym, env, val)? {
+            Type::Array(content) => match self.index.eval(sym, val)? {
+                Value::Number(n) => Ok((&*content.clone().remove(n as usize).clone()).clone()),
+                c => Err(RunError::new(&format!("{:?}: invalid index", c))),
+            },
+            Type::Any => Ok(Type::Any),
+            _ => Err(RunError::new(&format!("{:?}: can't index", self.id))),
+        }
     }
 }
 
@@ -338,10 +375,10 @@ pub enum Statement {
 }
 
 impl Visitor for Statement {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         match *self {
-            Statement::Expression(ref e)    => e.visit(sym, env),
-            Statement::Binding(ref binding) => binding.visit(sym, env),
+            Statement::Expression(ref e)    => e.visit(sym, env, val),
+            Statement::Binding(ref binding) => binding.visit(sym, env, val),
             _ => Ok(()),
         }
     }
@@ -357,6 +394,15 @@ impl Evaluator for Statement {
     }
 }
 
+impl Typer for Statement {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<Type> {
+        match *self {
+            Statement::Expression(ref e)    => e.get_type(sym, env, val),
+            _ => Ok(Type::Undefined),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Binding {
     pub left:  Rc<Expression>,
@@ -364,7 +410,7 @@ pub struct Binding {
 }
 
 impl Visitor for Binding {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<()> {
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         match *self.left {
             Expression::Identifier(ref name) => {
                 let index = sym.add_name(name);
@@ -372,7 +418,7 @@ impl Visitor for Binding {
                     env.grow();
                 }
                 
-                if let Err(e) = env.set_type(index, 0, self.right.get_type(sym, env)?) {
+                if let Err(e) = env.set_type(index, 0, self.right.get_type(sym, env, val)?) {
                     Err(RunError::new(&format!("{}: error setting type", e)))
                 } else {
                     Ok(())

@@ -120,8 +120,10 @@ impl Parser {
                     self.skip_whitespace()?;
                     self.traveler.expect_content(")")?;
                     self.traveler.next();
-                    
-                    if self.traveler.remaining() > 1 {
+
+                    if self.traveler.current_content() == "[" {
+                        self.index(Rc::new(a))
+                    } else if self.traveler.remaining() > 1 {
                         self.try_call(a)
                     } else {
                         Ok(a)
@@ -203,7 +205,11 @@ impl Parser {
 
         self.traveler.next();
 
-        Ok(Expression::Array(content))
+        if self.traveler.current_content() == "[" {
+            self.index(Rc::new(Expression::Array(content)))
+        } else {
+            Ok(Expression::Array(content))
+        }
     }
     
     fn lambda(&mut self) -> ParserResult<Expression> {

@@ -6,7 +6,13 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Str, Char, Number, Bool, Any, Undefined,
+    Str,
+    Char,
+    Number,
+    Bool,
+    Any,
+    Array(Vec<Rc<Type>>),
+    Undefined,
 }
 
 impl Type {
