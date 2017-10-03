@@ -10,6 +10,10 @@ pub trait Evaluator {
     fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value>;
 }
 
+pub trait Typer {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Block(Vec<Statement>),
@@ -35,7 +39,7 @@ impl Visitor for Expression {
                 }
                 Ok(())
             },
-            
+
             Expression::Array(ref body) => {
                 for v in body {
                     v.visit(sym, env)?
@@ -88,6 +92,25 @@ impl Evaluator for Expression {
     }
 }
 
+impl Typer for Expression {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type> {
+        match *self {
+            Expression::Number(_)         => Ok(Type::Number),
+            Expression::Str(_)            => Ok(Type::Str),
+            Expression::Char(_)           => Ok(Type::Char),
+            Expression::Bool(_)           => Ok(Type::Bool),
+            Expression::Identifier(ref n) => match sym.get_name(&*n) {
+                Some((i, env_index)) => {
+                    Ok(env.get_type(i, env_index).unwrap())
+                },
+                None => Err(RunError::new(&format!("unexpected use of: {}", n))),
+            },
+            Expression::Operation(ref operation) => operation.get_type(sym, env),
+            _ => Ok(Type::Undefined),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Operation {
     pub left:  Rc<Expression>,
@@ -119,7 +142,7 @@ impl Evaluator for Operation {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a / b)),
                 _ => Ok(Value::Nil),
             },
-            
+
             Operand::Mod => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a % b)),
                 _ => Ok(Value::Nil),
@@ -178,6 +201,84 @@ impl Evaluator for Operation {
                 (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() >= b.len())),
                 _ => Ok(Value::Nil),
             },
+        }
+    }
+}
+
+impl Typer for Operation {
+    fn get_type(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>) -> RunResult<Type> {
+        match self.op {
+            Operand::Pow => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}^{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Mul => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}*{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Div => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}/{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Mod => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}%{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Add => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}+{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Sub => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Number),
+                (Type::Any, Type::Number)    => Ok(Type::Any),
+                (Type::Number, Type::Any)    => Ok(Type::Any),
+                (a, b) => Err(RunError::new(&format!("({:?}-{:?}): failed to operate", a, b)))
+            },
+            
+            Operand::Lt => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Bool),
+                (Type::Str, Type::Str)       => Ok(Type::Bool),
+                (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (a, b) => Err(RunError::new(&format!("({:?}<{:?}): failed to compare", a, b)))
+            },
+            
+            Operand::Gt => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Bool),
+                (Type::Str, Type::Str)       => Ok(Type::Bool),
+                (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (a, b) => Err(RunError::new(&format!("({:?}>{:?}): failed to compare", a, b)))
+            },
+            
+            Operand::LtEqual => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Bool),
+                (Type::Str, Type::Str)       => Ok(Type::Bool),
+                (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (a, b) => Err(RunError::new(&format!("({:?}<={:?}): failed to compare", a, b)))
+            },
+
+            Operand::GtEqual => match (self.left.get_type(sym, env)?, self.right.get_type(sym, env)?) {
+                (Type::Number, Type::Number) => Ok(Type::Bool),
+                (Type::Str, Type::Str)       => Ok(Type::Bool),
+                (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (a, b) => Err(RunError::new(&format!("({:?}>={:?}): failed to compare", a, b)))
+            },
+
+            _ => Ok(Type::Undefined),
         }
     }
 }
@@ -271,7 +372,7 @@ impl Visitor for Binding {
                     env.grow();
                 }
                 
-                if let Err(e) = env.set_type(index, 0, Type::Any) {
+                if let Err(e) = env.set_type(index, 0, self.right.get_type(sym, env)?) {
                     Err(RunError::new(&format!("{}: error setting type", e)))
                 } else {
                     Ok(())

@@ -5,8 +5,7 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = {1, 2, 3} - 1
-a
+let a = 1 * 1
     "#;
 
     let lexer = lexer(&mut test.chars());

@@ -6,7 +6,7 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Str, Char, Num, Bool, Any, Undefined,
+    Str, Char, Number, Bool, Any, Undefined,
 }
 
 impl Type {
