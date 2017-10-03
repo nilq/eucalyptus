@@ -117,6 +117,7 @@ impl Typer for Expression {
                 None => Err(RunError::new(&format!("unexpected use of: {}", n))),
             },
             Expression::Operation(ref operation) => operation.get_type(sym, env, val),
+            Expression::Index(ref index)         => index.get_type(sym, env, val),
             _ => Ok(Type::Undefined),
         }
     }
