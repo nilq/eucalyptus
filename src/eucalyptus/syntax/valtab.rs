@@ -11,6 +11,7 @@ pub enum Value {
     Str(Rc<String>),
     Char(char),
     Array(Vec<Rc<Value>>),
+    Function(Vec<Rc<String>>, Vec<Statement>),
     Nil,
 }
 
@@ -23,14 +24,14 @@ impl ValTab {
     pub fn new(parent: Rc<ValTab>, types: &Vec<Value>) -> ValTab {
         ValTab {
             parent: Some(parent),
-            types: RefCell::new(types.clone()),
+            types:  RefCell::new(types.clone()),
         }
     }
 
     pub fn new_global() -> ValTab {
         ValTab {
             parent: None,
-            types: RefCell::new(Vec::new()),
+            types:  RefCell::new(Vec::new()),
         }
     }
 

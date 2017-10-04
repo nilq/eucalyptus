@@ -53,7 +53,6 @@ impl Visitor for Expression {
             },
 
             Expression::Operation(ref operation) => operation.visit(sym, env, val),
-            Expression::Lambda(ref lambda)       => lambda.visit(sym, env, val),
             Expression::Call(ref call)           => call.visit(sym, env, val),
             Expression::Index(ref index)         => index.visit(sym, env, val),
 
@@ -69,6 +68,13 @@ impl Evaluator for Expression {
             Expression::Bool(n)    => Ok(Value::Bool(n)),
             Expression::Str(ref n) => Ok(Value::Str(n.clone())),
             Expression::Char(n)    => Ok(Value::Char(n)),
+            
+            Expression::Block(ref statements) => {
+                match statements.last() {
+                    Some(s) => Ok(s.eval(sym, env)?),
+                    None    => Err(RunError::new(&format!("found empty block"))),
+                }
+            },
 
             Expression::Array(ref content) => {
                 let mut stack = Vec::new();
@@ -84,10 +90,12 @@ impl Evaluator for Expression {
 
             Expression::Identifier(ref id) => match sym.get_name(&*id) {
                 Some((a, b)) => Ok(env.get_value(a, b)?),
-                None         => Ok(Value::Nil),
+                None         => Err(RunError::new(&format!("{}: undeclared use", id))),
             },
 
             Expression::Operation(ref operation) => operation.eval(sym, env),
+            Expression::Lambda(ref lambda)       => lambda.eval(sym, env),
+            Expression::Call(ref call)           => call.eval(sym, env),
 
             _ => Ok(Value::Nil),
         }
@@ -301,13 +309,19 @@ pub struct Lambda {
     pub body:   Rc<Expression>,
 }
 
-impl Visitor for Lambda {
-    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
-        let local_sym = Rc::new(SymTab::new(sym.clone(), &self.params));
-        let local_env = Rc::new(TypeTab::new(env.clone(), &self.params.iter().map(|_| Type::Any).collect()));
-        let local_val = Rc::new(ValTab::new(val.clone(), &self.params.iter().map(|_| Value::Nil).collect())); // hmmm
-
-        self.body.visit(&local_sym, &local_env, &local_val)
+impl Evaluator for Lambda {
+    fn eval(&self, _: &Rc<SymTab>, _: &Rc<ValTab>) -> RunResult<Value> {
+        let body = match *self.body {
+            Expression::Block(ref s) => s.clone(),
+            ref e => vec![Statement::Expression(Rc::new(e.clone()))],
+        };
+        
+        Ok(
+            Value::Function(
+                self.params.clone(),
+                body,
+            )
+        )
     }
 }
 
@@ -326,6 +340,27 @@ impl Visitor for Call {
         }
         
         Ok(())
+    }
+}
+
+impl Evaluator for Call {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        match self.callee.eval(sym, env)? {
+            Value::Function(params, body) => {
+                let local_sym = Rc::new(SymTab::new(sym.clone(), &params));
+                
+                let mut arg_vals = Vec::new();
+                
+                for a in self.args.clone() {
+                    arg_vals.push(a.eval(sym, env)?)
+                }
+                
+                let local_env = Rc::new(ValTab::new(env.clone(), &arg_vals));
+
+                Ok(Expression::Block(body).eval(&local_sym, &local_env)?)
+            },
+            _ => Ok(Value::Nil),
+        }
     }
 }
 
