@@ -24,8 +24,6 @@ _
 
             let mut acc = 1;
             
-            println!("{:#?}", stuff);
-
             for s in stuff.iter() {
                 match s.visit(&symtab, &typetab, &valtab) {
                     Ok(_)  => (),
