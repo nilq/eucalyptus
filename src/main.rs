@@ -5,9 +5,9 @@ use eucalyptus::*;
 
 fn main() {
     let test = r#"
-let a = fun b -> b
-a 10
-    "#;
+let _ = 10
+_
+"#;
 
     let lexer = lexer(&mut test.chars());
 
@@ -21,10 +21,14 @@ a 10
             let typetab = Rc::new(TypeTab::new_global());
 
             let valtab = Rc::new(ValTab::new_global());
+
+            let mut acc = 1;
             
+            println!("{:#?}", stuff);
+
             for s in stuff.iter() {
                 match s.visit(&symtab, &typetab, &valtab) {
-                    Ok(()) => (),
+                    Ok(_)  => (),
                     Err(e) => {
                         println!("{}", e);
                         break
@@ -32,7 +36,7 @@ a 10
                 }
 
                 match s.get_type(&symtab, &typetab, &valtab) {
-                    Ok(v) => println!("type: {:#?}", v),
+                    Ok(_) => (),
                     Err(e) => {
                         println!("{}", e);
                         break
@@ -40,12 +44,16 @@ a 10
                 }
                 
                 match s.eval(&symtab, &valtab) {
-                    Ok(v) => println!("value: {:#?}", v),
+                    Ok(v) => if acc == stuff.len() {
+                        println!("{:#?}", v)
+                    },
+
                     Err(e) => {
                         println!("{}", e);
                         break
                     },
                 }
+                acc += 1
             }
         },
     }

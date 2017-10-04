@@ -229,8 +229,14 @@ impl Parser {
         }
         
         self.traveler.next();
-
-        let body = Rc::new(self.expression()?);
+        
+        let body;
+        
+        if self.traveler.current_content() == "\n" {
+            body = Rc::new(self.block()?)
+        } else {
+            body = Rc::new(self.expression()?)
+        }
 
         Ok(
             Expression::Lambda(
@@ -293,8 +299,7 @@ impl Parser {
         let mut stack = Vec::new();
         loop {
             if self.traveler.current().token_type == TokenType::Indent {
-                self.traveler.prev();
-                
+                self.traveler.next();
                 if self.traveler.current_content() == "\n" {
                     self.traveler.next();
                     break
@@ -310,10 +315,14 @@ impl Parser {
                 }
             }
             
+            if self.traveler.remaining() < 2 {
+                break
+            }
+
             stack.push(self.traveler.current().clone());
             self.traveler.next();
-        }
-        
+        }        
+
         let mut parser = Parser::new(Traveler::new(stack));
 
         match parser.parse() {

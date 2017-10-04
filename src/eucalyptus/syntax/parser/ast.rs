@@ -70,7 +70,20 @@ impl Evaluator for Expression {
             Expression::Char(n)    => Ok(Value::Char(n)),
             
             Expression::Block(ref statements) => {
-                match statements.last() {
+                let mut statements_trim = Vec::new();
+                for s in statements {
+                    s.eval(sym, env)?;
+                    match *s {
+                        Statement::Expression(ref e) => match **e {
+                            Expression::EOF => (),
+                            ref c => statements_trim.push(Statement::Expression(Rc::new(c.clone()))),
+                        },
+
+                        ref c => statements_trim.push(c.clone()),
+                    }
+                }
+
+                match statements_trim.last() {
                     Some(s) => Ok(s.eval(sym, env)?),
                     None    => Err(RunError::new(&format!("found empty block"))),
                 }
@@ -122,7 +135,7 @@ impl Typer for Expression {
                 Some((i, env_index)) => {
                     Ok(env.get_type(i, env_index).unwrap())
                 },
-                None => Err(RunError::new(&format!("unexpected use of: {}", n))),
+                None => Err(RunError::new(&format!("{}: can't get type of undeclared", n))),
             },
             Expression::Operation(ref operation) => operation.get_type(sym, env, val),
             Expression::Index(ref index)         => index.get_type(sym, env, val),
@@ -186,7 +199,7 @@ impl Evaluator for Operation {
             Operand::Equal => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (a, b) => Ok(Value::Bool(a == b)),
             },
-            
+
             Operand::NEqual => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (a, b) => Ok(Value::Bool(a != b)),
             },
@@ -206,7 +219,7 @@ impl Evaluator for Operation {
                 (Value::Array(a), Value::Array(b))   => Ok(Value::Bool(a.len() > b.len())),
                 _ => Ok(Value::Nil),
             },
-            
+
             Operand::LtEqual => match (self.left.eval(sym, env)?, self.right.eval(sym, env)?) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a <= b)),
                 (Value::Str(a), Value::Str(b))       => Ok(Value::Bool(a <= b)),
@@ -232,6 +245,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}^{:?}): failed to operate", a, b)))
             },
             
@@ -239,6 +253,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}*{:?}): failed to operate", a, b)))
             },
             
@@ -246,6 +261,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}/{:?}): failed to operate", a, b)))
             },
             
@@ -253,6 +269,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}%{:?}): failed to operate", a, b)))
             },
             
@@ -260,6 +277,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}+{:?}): failed to operate", a, b)))
             },
             
@@ -267,6 +285,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Number),
                 (Type::Any, Type::Number)    => Ok(Type::Any),
                 (Type::Number, Type::Any)    => Ok(Type::Any),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}-{:?}): failed to operate", a, b)))
             },
             
@@ -274,6 +293,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}<{:?}): failed to compare", a, b)))
             },
             
@@ -281,6 +301,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}>{:?}): failed to compare", a, b)))
             },
             
@@ -288,6 +309,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}<={:?}): failed to compare", a, b)))
             },
 
@@ -295,6 +317,7 @@ impl Typer for Operation {
                 (Type::Number, Type::Number) => Ok(Type::Bool),
                 (Type::Str, Type::Str)       => Ok(Type::Bool),
                 (Type::Char, Type::Char)     => Ok(Type::Bool),
+                (Type::Any, Type::Any)       => Ok(Type::Any),
                 (a, b) => Err(RunError::new(&format!("({:?}>={:?}): failed to compare", a, b)))
             },
 
@@ -335,10 +358,31 @@ impl Visitor for Call {
     fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         self.callee.visit(sym, env, val)?;
 
+        match self.callee.eval(sym, val)? {
+            Value::Function(params, body) => {
+
+                let local_sym = Rc::new(SymTab::new(sym.clone(), &params));
+
+                let mut arg_vals  = Vec::new();
+                let mut arg_types = Vec::new();
+
+                for a in self.args.clone() {
+                    arg_vals.push(a.eval(sym, val)?);
+                    arg_types.push(a.get_type(sym, env, val)?)
+                }
+
+                let local_env = Rc::new(TypeTab::new(env.clone(), &arg_types));
+                let local_val = Rc::new(ValTab::new(val.clone(), &arg_vals));
+
+                Expression::Block(body).visit(&local_sym, &local_env, &local_val)?;
+            },
+            _ => (),
+        }
+
         for arg in self.args.iter() {
             arg.visit(sym, env, val)?
         }
-        
+
         Ok(())
     }
 }
@@ -413,8 +457,9 @@ pub enum Statement {
 impl Visitor for Statement {
     fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
         match *self {
-            Statement::Expression(ref e)    => e.visit(sym, env, val),
-            Statement::Binding(ref binding) => binding.visit(sym, env, val),
+            Statement::Expression(ref e)      => e.visit(sym, env, val),
+            Statement::Binding(ref binding)   => binding.visit(sym, env, val),
+            Statement::Function(ref function) => function.visit(sym, env, val),
             _ => Ok(()),
         }
     }
@@ -423,8 +468,9 @@ impl Visitor for Statement {
 impl Evaluator for Statement {
     fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
         match *self {
-            Statement::Expression(ref e)    => e.eval(sym, env),
-            Statement::Binding(ref binding) => binding.eval(sym, env),
+            Statement::Expression(ref e)      => e.eval(sym, env),
+            Statement::Binding(ref binding)   => binding.eval(sym, env),
+            Statement::Function(ref function) => function.eval(sym, env),
             _ => Ok(Value::Nil),
         }
     }
@@ -453,7 +499,7 @@ impl Visitor for Binding {
                 if index >= env.size() {
                     env.grow();
                 }
-                
+
                 if let Err(e) = env.set_type(index, 0, self.right.get_type(sym, env, val)?) {
                     Err(RunError::new(&format!("{}: error setting type", e)))
                 } else {
@@ -492,6 +538,44 @@ pub struct Function {
     pub name:   Rc<String>,
     pub params: Vec<Rc<String>>,
     pub body:   Rc<Expression>,
+}
+
+impl Visitor for Function {
+    fn visit(&self, sym: &Rc<SymTab>, env: &Rc<TypeTab>, val: &Rc<ValTab>) -> RunResult<()> {
+        let index = sym.add_name(&self.name);
+        if index >= env.size() {
+            env.grow();
+        }
+
+        let local_sym = Rc::new(SymTab::new(sym.clone(), &self.params));
+        let local_env = Rc::new(TypeTab::new(env.clone(), &self.params.iter().map(|_| Type::Any).collect()));
+
+        if let Err(e) = env.set_type(index, 0, self.body.get_type(&local_sym, &local_env, val)?) {
+            Err(RunError::new(&format!("{}: error setting type", e)))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl Evaluator for Function {
+    fn eval(&self, sym: &Rc<SymTab>, env: &Rc<ValTab>) -> RunResult<Value> {
+        let body = match *self.body {
+            Expression::Block(ref s) => s.clone(),
+            ref e => vec![Statement::Expression(Rc::new(e.clone()))],
+        };
+
+        let index = sym.add_name(&self.name);
+        if index >= env.size() {
+            env.grow();
+        }
+
+        if let Err(e) = env.set_value(index, 0, Value::Function(self.params.clone(), body)) {
+            Err(RunError::new(&format!("{}: error setting value", e)))
+        } else {
+            Ok(Value::Nil)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
